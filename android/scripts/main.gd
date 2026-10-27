@@ -2,6 +2,7 @@ extends Control
 
 const SaveStore = preload("res://scripts/save_store.gd")
 const Controls = preload("res://scripts/controls.gd")
+const TouchLayout = preload("res://scripts/touch_layout.gd")
 const TICK := 1.0 / 30.0
 const INK := Color("edf4ea")
 const MUTED := Color("a3b3bd")
@@ -37,6 +38,8 @@ var import_dialog: FileDialog
 var editor: Control
 var notice := ""
 var remap_action := ""
+var touch_layout: Control
+var fps_label: Label
 
 func _ready() -> void:
 	store.load_data()
@@ -48,6 +51,9 @@ func _ready() -> void:
 	settings.touch_controls = settings.get("touch_controls", true) == true
 	settings.mirrored = settings.get("mirrored", false) == true
 	settings.alternate = settings.get("alternate", false) == true
+	settings.show_fps = settings.get("show_fps", false) == true
+	settings.target_fps = 30 if settings.get("target_fps", 60) == 30 else 60
+	Engine.max_fps = int(settings.target_fps)
 	controls.alternate = bool(settings.get("alternate", false))
 	if settings.get("joy_buttons") is Dictionary:
 		for action in ["jump", "run", "special"]:
@@ -72,6 +78,17 @@ func _ready() -> void:
 	bar.add_child(status)
 	var pause_button = _button("Ⅱ  PAUSE", _toggle_pause)
 	bar.add_child(pause_button)
+	fps_label = Label.new()
+	fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fps_label.add_theme_color_override("font_color", ACCENT)
+	add_child(fps_label)
+	_update_fps()
+	touch_layout = TouchLayout.new()
+	add_child(touch_layout)
+	touch_layout.saved.connect(func(layouts: Dictionary): settings.touch_layouts = layouts; _save_settings(); _close_touch_layout())
+	touch_layout.cancelled.connect(_close_touch_layout)
+	touch_layout.layout_changed.connect(func():
+		if touch_layout.editing: touch_regions = touch_layout.regions.duplicate(true))
 	if ResourceLoader.exists("res://scripts/oiram_pack.gd"):
 		pack_codec = load("res://scripts/oiram_pack.gd")
 	if ClassDB.class_exists("OiramEngine"):
@@ -322,6 +339,7 @@ func _begin_level(level: Dictionary) -> void:
 	_checkpoint()
 
 func _process(delta: float) -> void:
+	_update_fps()
 	if not running or paused or engine == null:
 		return
 	# Countdown follows real elapsed foreground time, independently of simulation ticks.
@@ -345,7 +363,11 @@ func _process(delta: float) -> void:
 		_render_frame()
 
 func _render_frame() -> void:
-	var pixels: PackedByteArray = engine.frame()
+	var pixels: PackedByteArray
+	if int(settings.get("target_fps", 60)) == 60 and engine.has_method("frame_interpolated"):
+		pixels = engine.frame_interpolated(clampf(accumulator / TICK, 0.0, 1.0))
+	else:
+		pixels = engine.frame()
 	if pixels.size() != 320 * 240 * 4:
 		return
 	var image = Image.create_from_data(320, 240, false, Image.FORMAT_RGBA8, pixels)
@@ -403,6 +425,7 @@ func _checkpoint(capture: bool = true) -> void:
 	store.flush()
 
 func _toggle_pause() -> void:
+	if is_instance_valid(touch_layout) and touch_layout.editing: return
 	if not running:
 		return
 	if paused:
@@ -433,6 +456,7 @@ func _pause(title: String, message: String = "", capture: bool = true) -> void:
 	queue_redraw()
 
 func _resume() -> void:
+	if is_instance_valid(touch_layout) and touch_layout.editing: return
 	if not running or terminal:
 		return
 	paused = false
@@ -442,6 +466,7 @@ func _resume() -> void:
 	accumulator = 0.0
 	clock_accumulator = 0.0
 	clock_last_usec = Time.get_ticks_usec()
+	if engine != null and engine.has_method("reset_interpolation"): engine.reset_interpolation()
 	if is_instance_valid(overlay):
 		overlay.queue_free()
 		overlay = null
@@ -449,10 +474,15 @@ func _resume() -> void:
 
 func _notification(what: int) -> void:
 	if what in [NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_APPLICATION_FOCUS_OUT]:
+		if is_instance_valid(touch_layout) and touch_layout.editing:
+			touch_layout.drags.clear()
+			controls.release_all()
 		if running and not paused:
 			_pause("PAUSED", "Welcome back. Resume when you are ready.")
 	elif what == NOTIFICATION_WM_GO_BACK_REQUEST:
-		if is_instance_valid(editor) and editor.visible:
+		if is_instance_valid(touch_layout) and touch_layout.editing:
+			touch_layout.cancel()
+		elif is_instance_valid(editor) and editor.visible:
 			editor._back()
 		elif running:
 			_toggle_pause()
@@ -478,9 +508,10 @@ func _set_touch_controls(enabled: bool) -> void:
 	_layout()
 
 func _settings_menu() -> void:
+	if running and not paused: _pause("PAUSED")
 	controls.pause_enabled = false
 	var column = _card("SETTINGS", "Touch controls and gamepad preferences are saved on this device.")
-	for entry in [["touch_controls", "Show touch controls"], ["mirrored", "Left-handed layout (mirror controls)"], ["alternate", "Original alternate keys (C jump / Z run / X special)"]]:
+	for entry in [["show_fps", "Show FPS"], ["touch_controls", "Show touch controls"], ["mirrored", "Left-handed layout (mirror controls)"], ["alternate", "Original alternate keys (C jump / Z run / X special)"]]:
 		var toggle = CheckButton.new()
 		toggle.text = entry[1]
 		toggle.button_pressed = bool(settings.get(entry[0], false))
@@ -492,8 +523,22 @@ func _settings_menu() -> void:
 				settings[setting_key] = value
 				controls.alternate = bool(settings.get("alternate", false))
 				_save_settings()
-				_layout())
+				_layout()
+				_update_fps())
 		column.add_child(toggle)
+	column.add_child(_button("Edit touch layout", _edit_touch_layout))
+	var presentation = OptionButton.new()
+	presentation.add_item("30 FPS classic", 30)
+	presentation.add_item("60 FPS smooth", 60)
+	presentation.selected = 0 if int(settings.get("target_fps", 60)) == 30 else 1
+	presentation.item_selected.connect(func(index: int):
+		settings.target_fps = presentation.get_item_id(index)
+		Engine.max_fps = int(settings.target_fps)
+		accumulator = 0.0
+		if engine != null and engine.has_method("reset_interpolation"): engine.reset_interpolation()
+		_save_settings())
+	column.add_child(presentation)
+	column.add_child(_label("60 FPS smooths motion without changing game speed.", 16, MUTED))
 	for entry in [["opacity", "Touch opacity", 0.25, 1.0, 0.05, 0.75], ["size", "Touch size", 0.7, 1.3, 0.05, 1.0]]:
 		column.add_child(_label(entry[1], 18, MUTED))
 		var slider = HSlider.new()
@@ -599,7 +644,7 @@ func _layout() -> void:
 	var portrait = size.y > size.x
 	var control_scale = clampf(float(settings.get("size", 1.0)), 0.7, 1.3)
 	var radius = minf(43.0, size.x * 0.065) * control_scale
-	var show_touch = bool(settings.get("touch_controls", true))
+	var show_touch = bool(settings.get("touch_controls", true)) or touch_layout.editing
 	var side_margin = radius * 4.2 + 16 if show_touch else 12.0
 	var available = Rect2(Vector2(side_margin, 66), Vector2(maxf(100, size.x - side_margin * 2), maxf(100, size.y - 80)))
 	if portrait:
@@ -607,25 +652,46 @@ func _layout() -> void:
 	var scale_factor = minf(available.size.x / 320.0, available.size.y / 240.0)
 	screen.size = Vector2(320, 240) * scale_factor
 	screen.position = available.position + (available.size - screen.size) * 0.5
-	var center_y = size.y - (114 if portrait else 100)
-	var left_center = Vector2(radius * 2.05 + 8, center_y)
-	var right_center = Vector2(size.x - radius - 12, center_y)
-	if bool(settings.get("mirrored", false)):
-		var old_left = left_center
-		left_center = right_center
-		right_center = old_left
+	touch_layout.configure(size, settings)
 	touch_regions.clear()
-	if not show_touch:
-		queue_redraw()
-		return
-	var spacing = radius * 1.15
-	for entry in [[Controls.LEFT, Vector2(-spacing, 0), "◀"], [Controls.RIGHT, Vector2(spacing, 0), "▶"], [Controls.UP, Vector2(0, -spacing), "▲"], [Controls.DOWN, Vector2(0, spacing), "▼"]]:
-		touch_regions.append({"action": entry[0], "center": left_center + entry[1], "radius": radius * 0.7, "label": entry[2]})
-	var inward = -1 if right_center.x > size.x * 0.5 else 1
-	touch_regions.append({"action": Controls.JUMP, "center": right_center + Vector2(0, -radius * 0.6), "radius": radius, "label": "JUMP"})
-	touch_regions.append({"action": Controls.RUN, "center": right_center + Vector2(inward * radius * 1.55, radius * 0.8), "radius": radius * 0.85, "label": "RUN"})
-	touch_regions.append({"action": Controls.SPECIAL, "center": right_center + Vector2(inward * radius * 1.7, -radius * 1.35), "radius": radius * 0.65, "label": "SP"})
+	if show_touch: touch_regions.assign(touch_layout.regions)
+	fps_label.position = Vector2(maxf(12, size.x - 135), 68)
+	fps_label.move_to_front()
 	queue_redraw()
+
+func _update_fps() -> void:
+	if not is_instance_valid(fps_label): return
+	fps_label.visible = bool(settings.get("show_fps", false))
+	fps_label.text = "%d FPS" % roundi(Engine.get_frames_per_second())
+
+func _edit_touch_layout() -> void:
+	if running and not paused: _pause("PAUSED")
+	paused = true
+	controls.enabled = false
+	controls.pause_enabled = false
+	controls.release_all()
+	pointer_positions.clear()
+	mouse_down = false
+	accumulator = 0.0
+	clock_accumulator = 0.0
+	if is_instance_valid(overlay):
+		overlay.queue_free()
+		overlay = null
+	bar.hide()
+	# The title preview configures the first stage without advancing native logic.
+	if not running and engine != null and not packs.is_empty():
+		engine.configure(packs[selected].levels[0], {"lives": 15, "coins": 0, "score": 0, "flags": 0})
+		_render_frame()
+	screen.show()
+	touch_layout.move_to_front()
+	touch_layout.begin(size, settings)
+	_layout()
+
+func _close_touch_layout() -> void:
+	_layout()
+	bar.visible = running
+	screen.visible = running
+	_settings_menu()
 
 func _draw() -> void:
 	if not running: return
@@ -652,12 +718,15 @@ func _frame_style() -> StyleBoxFlat:
 	return box
 
 func _touch_action(position_value: Vector2) -> int:
-	for region in touch_regions:
+	# Later controls are drawn on top and win when customized layouts overlap.
+	for index in range(touch_regions.size() - 1, -1, -1):
+		var region = touch_regions[index]
 		if position_value.distance_to(region.center) <= region.radius * 1.2:
 			return int(region.action)
 	return 0
 
 func _input(event: InputEvent) -> void:
+	if is_instance_valid(touch_layout) and touch_layout.editing: return
 	if not remap_action.is_empty() and event is InputEventJoypadButton and event.pressed and event.button_index != JOY_BUTTON_START:
 		controls.joy_buttons[remap_action] = event.button_index
 		remap_action = ""

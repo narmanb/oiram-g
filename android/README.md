@@ -33,6 +33,23 @@ Import compatible `.8xv` packs with Import pack. Validation runs before a pack
 enters app storage. Custom graphics AppVars are not imported; compatible level
 packs use the original tiles and sprite set supplied with this build.
 
+## Touch layout and display settings (0.1.2)
+
+Open **Settings → Edit touch layout** from the title or paused game. Drag the
+D-pad by its group outline/center and drag Jump, Run and Special individually.
+**Save** keeps the arrangement; **Cancel** discards edits; **Reset** restores the
+current orientation's defaults. Landscape and portrait positions are saved
+separately, work with mirroring, and are clamped inside the screen at the selected
+button size. Gameplay stays paused while arranging controls. Controls may overlap
+if you place them that way; the visually topmost button receives the tap.
+
+**60 FPS smooth** is the default presentation target. It interpolates original
+sprite/camera positions between fixed gameplay updates, preserving the current
+game speed and C physics. **30 FPS classic** uses the original framebuffer cadence.
+**Show FPS** displays the measured engine frame rate in game; reaching the target
+depends on the device's rendering performance, refresh rate and power settings.
+The original animation cadence and crisp pixel grid remain unchanged.
+
 ## Editing
 
 The built-in editor offers a tile/object palette, paint/erase, unique spawn,

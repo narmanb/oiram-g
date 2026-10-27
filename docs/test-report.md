@@ -94,3 +94,26 @@ The v0.1.1 build passes 35 actual-input touch checks, 70 native integration chec
 32 editor checks, the full pack suite, native sanitizer regressions and all 96
 default-stage sanitizer scenarios. Exported APK SHA256: `9397dc58919ecebe12610872783e8da1cf132e39e0f28405cb5ba2cbb2252401`.
 Version code 2 uses the same signing certificate as the initial build.
+
+## Layout and smooth presentation (0.1.2-private)
+
+- `test_layout.gd`: 163 checks for grouped D-pad dragging, independent action
+  anchors, real touch/mouse events, normalized landscape/portrait save/reopen,
+  mirror/clamping including maximum button size and narrow windows, Save/Cancel/
+  Reset/Back, paused input isolation, hidden overlay preference, overlap hit
+  priority, measured FPS toggle, 30/60 option persistence and native render choice.
+- `scripts/test-presentation.sh`: ASan/UBSan checks actual midpoint sprite pixels,
+  intermediate camera scroll, snapshots against post-draw tile/animation changes,
+  finite/clamped alpha, teleport snapping, allocation-ID reuse, bounded-buffer
+  fallback, classic alpha1 equality, unchanged native framebuffer and unchanged
+  game state across repeated render-only calls. A visible short door warp failed
+  without history clearing and passes with it.
+- The 96 default-stage sanitizer scenarios additionally sample interpolated
+  presentation across all default levels/forms and assert alpha1 framebuffer
+  equality and unchanged game state.
+
+These are host automated checks. They establish the rendering/simulation separation
+and unchanged mechanics; they do not establish sustained physical-device 60 FPS.
+The new in-game counter exposes the device's actual frame rate.
+
+Final v0.1.2 APK SHA256: `b31402b3b3684fc621a4e2ae38c2f557cddc5322f44f1cae9f4dfd2e36904fe4`; size 84158854 bytes. Version code3 uses the same signing certificate as v0.1.1.

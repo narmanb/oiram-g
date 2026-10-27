@@ -77,10 +77,11 @@ Gradle files live under the ignored `android/.android-build/` directory.
 
 ## Inspect and install
 
-`build-apk.sh` runs the C regression suite with AddressSanitizer and
-UndefinedBehaviorSanitizer, then the full pack codec mutation suite, shell,
-native integration, and editor Godot suites. A second sanitizer suite exercises
-the decoded default stages. Failed checks stop export. It verifies the APK
+`build-apk.sh` runs the C gameplay and render-interpolation suites with
+AddressSanitizer and UndefinedBehaviorSanitizer, then the full pack codec mutation
+suite, shell, native integration, real touch input, draggable-layout/FPS and editor
+Godot suites. Another sanitizer suite exercises the decoded default stages and
+checks interpolated output against original frames. Failed checks stop export. It verifies the APK
 signature, minimum and target SDKs, and 16 KiB ZIP alignment, and checks
 that all native libraries are ARM64 and that the Oiram extension is included,
 and rejects an Internet permission. The preset uses Android 13/API 33 minimum,

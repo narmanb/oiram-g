@@ -128,3 +128,32 @@ The HUD font data comes from CE Programming GraphX at toolchain commit
 bundled in `android/licenses/`. Complete font source data and relinkable application
 sources/build instructions are included. Godot/godot-cpp use their MIT licenses
 and are fetched from the pinned upstream distributions described in the build doc.
+
+## Smooth presentation added in 0.1.2
+
+Simulation remains 30 ticks/second, with the same uncalibrated timing baseline
+and original calculations. The default 60 FPS mode does real render-only
+interpolation rather than advancing gameplay twice as fast or blending images.
+`presentation.c` records each original C sprite/tilemap draw call, retains scalar
+allocation-lifetime IDs and draw ordinals, and interpolates matched positions
+and clipping/camera coordinates into a separate indexed framebuffer. Tilemap
+data and animation aliases are snapshotted before events/animation mutate them.
+The original current framebuffer is preserved; at alpha1 the replay matches it.
+Positions are rounded to the original pixel grid, so very slow one-pixel moves
+and original animation frames retain their discrete pixel/animation cadence.
+
+New render IDs in `memory.c` are metadata only. Generated event code marks object
+draw contexts and player/body/shell/tail channels; no mechanics are changed.
+Removed objects leave no dangling entity pointer in frame history, and reused
+allocations receive new IDs. Replay does not invoke event handlers or clocks.
+The bounded command buffer falls back to the authentic current frame on overflow.
+Nonfinite alpha is handled safely; presentation target/clip state is restored.
+Configure, shutdown, resume and pipe/door teleport transitions clear history.
+Large coordinate discontinuities also snap instead of interpolating.
+
+GDExtension adds `frame_interpolated(alpha)` and `reset_interpolation()`. The shell
+uses its fixed-step remainder to render intermediate positions in smooth mode,
+sets Godot's target cap to 60, and displays measured `Engine.get_frames_per_second()`
+when enabled. Classic mode caps at30 and uses `frame()`. Physics, countdown, enemy
+activation, assets, pause behavior and saved progression are unchanged. Android
+sustained FPS still requires physical-device measurement with the visible counter.
