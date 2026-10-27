@@ -12,6 +12,9 @@ or an approved feature design.
   Keep manual controls available. Throwing behavior and preventing unintended
   pickup immediately after throwing still need a design decision.
 - Keep the earlier quality-of-life and game-update suggestions for later.
+- Higher presentation resolutions are acceptable when they help smoothness.
+  The original logical play area and gameplay remain unchanged; this is permission
+  to increase rendering precision, not a request to replace the original artwork.
 
 ## Verified constraints and possible next steps
 
@@ -66,3 +69,7 @@ and prefers the finer-position rendering approach while retaining current gamepl
 Hz. Version 0.1.3 implements a bounded 2x presentation canvas (half-source-pixel
 positions) and optional foreground frame-time diagnostics for device comparison.
 Actual device benefit remains to be established. Shell assistance remains deferred.
+The user is open to resolution increases beyond the current 640x480 smooth canvas.
+Evaluate finer actor/camera positioning against frame-time and rendering cost
+before adopting a higher default. Increasing output resolution alone does not
+create extra motion samples or new animation frames.
