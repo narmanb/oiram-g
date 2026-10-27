@@ -1,12 +1,16 @@
 /* Portable graphx subset. Clipped pixel rendering, original palette and HUD font. */
 #include "graphx.h"
+#include "presentation.h"
 #include "font.h"
 #include <stdio.h>
 uint16_t gfx_palette[256];
 uint8_t native_indexed_frame[320*240];
+static uint8_t *draw_target=native_indexed_frame;
+uint8_t *gfx_native_target(uint8_t *p){uint8_t *old=draw_target;draw_target=p;return old;}
 static uint8_t color,fg=254,bg=252,text_transparent=255;
 static int clip_x0,clip_y0,clip_x1=320,clip_y1=240,text_x,text_y;
 static uint8_t outside_tile=27;
+void gfx_native_clip(int out[4]){out[0]=clip_x0;out[1]=clip_y0;out[2]=clip_x1;out[3]=clip_y1;}
 uint16_t gfx_RGBTo1555(unsigned r,unsigned g,unsigned b){
     return ((r>>3)<<10)|((g>>3)<<5)|(b>>3);
 }
@@ -19,12 +23,12 @@ void gfx_SetClipRegion(int x0,int y0,int x1,int y1){
     clip_x0=x0<0?0:x0;clip_y0=y0<0?0:y0;
     clip_x1=x1>320?320:x1;clip_y1=y1>240?240:y1;
 }
-void gfx_SetPixel(int x,int y){if(x>=0&&x<320&&y>=0&&y<240)native_indexed_frame[y*320+x]=color;}
-void gfx_FillScreen(uint8_t c){memset(native_indexed_frame,c,sizeof native_indexed_frame);}
+void gfx_SetPixel(int x,int y){if(x>=0&&x<320&&y>=0&&y<240)draw_target[y*320+x]=color;}
+void gfx_FillScreen(uint8_t c){memset(draw_target,c,sizeof native_indexed_frame);}
 void gfx_FillRectangle_NoClip(int x,int y,int w,int h){
     if(w<=0||h<=0)return;
     int x0=x<0?0:x,y0=y<0?0:y,x1=x+w>320?320:x+w,y1=y+h>240?240:y+h;
-    for(int yy=y0;yy<y1;yy++)if(x1>x0)memset(native_indexed_frame+yy*320+x0,color,x1-x0);
+    for(int yy=y0;yy<y1;yy++)if(x1>x0)memset(draw_target+yy*320+x0,color,x1-x0);
 }
 void gfx_FillRectangle(int x,int y,int w,int h){
     int x0=x<clip_x0?clip_x0:x,y0=y<clip_y0?clip_y0:y;
@@ -37,12 +41,13 @@ void gfx_Rectangle_NoClip(int x,int y,int w,int h){
 }
 static void sprite(const gfx_sprite_t *s,int x,int y,bool transparent){
     if(!s)return;
+    int clip[4];gfx_native_clip(clip);native_presentation_sprite(s,x,y,transparent,clip);
     for(int yy=0;yy<s->height;yy++){
         int dy=y+yy;if(dy<clip_y0||dy>=clip_y1)continue;
         for(int xx=0;xx<s->width;xx++){
             int dx=x+xx;if(dx<clip_x0||dx>=clip_x1)continue;
             uint8_t p=s->data[yy*s->width+xx];
-            if(p||!transparent)native_indexed_frame[dy*320+dx]=p;
+            if(p||!transparent)draw_target[dy*320+dx]=p;
         }
     }
 }
@@ -62,11 +67,14 @@ uint8_t *gfx_TilePtr(const gfx_tilemap_t *t,int x,int y){
     return t->map+(y>>4)*t->width+(x>>4);
 }
 void gfx_Tilemap(const gfx_tilemap_t *t,unsigned sx,unsigned sy){
+    bool capturing=native_presentation_capturing();
+    if(capturing){int clip[4];gfx_native_clip(clip);native_presentation_tilemap(t,sx,sy,clip);native_presentation_capture(false);}
     for(unsigned yy=0;yy<t->draw_height;yy++)for(unsigned xx=0;xx<t->draw_width;xx++){
         int tx=(int)(sx/16+xx),ty=(int)(sy/16+yy);
         uint8_t n=27;if(tx<(int)t->width&&ty<(int)t->height)n=t->map[ty*t->width+tx];
         gfx_Sprite(t->tiles[n],(int)(xx*16)-(int)(sx%16),(int)(yy*16)-(int)(sy%16));
     }
+    if(capturing)native_presentation_capture(true);
 }
 void gfx_SetTextXY(int x,int y){text_x=x;text_y=y;}
 void gfx_SetTextFGColor(uint8_t c){fg=c;}

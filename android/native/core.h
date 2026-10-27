@@ -14,6 +14,8 @@ bool oiram_native_configure(const uint8_t *tiles,int width,int height,int scroll
 void oiram_native_step(uint32_t mask);
 void oiram_native_clock(unsigned seconds);
 const uint8_t *oiram_native_frame(void);
+const uint8_t *oiram_native_frame_interpolated(double alpha);
+void oiram_native_reset_interpolation(void);
 oiram_native_state_t oiram_native_state(void);
 void oiram_native_shutdown(void);
 void oiram_native_set_easter_egg(int code);

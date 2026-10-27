@@ -2,6 +2,7 @@
  * Original C movement/events/tiles remain authoritative in generated build sources.
  */
 #include "core.h"
+#include "presentation.h"
 #include "graphx.h"
 #include "defines.h"
 #include "oiram.h"
@@ -28,7 +29,7 @@ static bool configured,special_previous;
 static uint8_t rgba[320*240*4];
 void missing_appvars(void){abort();}
 void oiram_native_shutdown(void){
-    configured=false;oiram_native_memory_release();
+    configured=false;native_presentation_reset();oiram_native_memory_release();
     while(num_simple_enemies)remove_simple_enemy(0);
     while(num_simple_movers)remove_simple_mover(0);
     while(num_chompers)remove_chomper(0);
@@ -111,10 +112,14 @@ void oiram_native_step(uint32_t mask){
     if(allow_up_press)pressed_up=jump;
     else if(!jump){allow_up_press=true;if(oiram.vy< -5)oiram.vy=-5;}
     pressed_alpha=special&&!special_previous;special_previous=special;
+    native_presentation_begin();
     oiram_native_memory_begin();
+    bool was_entering=warp.enter;
     move_oiram();
+    if(was_entering&&!warp.enter){native_presentation_reset();native_presentation_begin();}
     gfx_Tilemap(&tilemap,oiram.scrollx,oiram.scrolly);
     handle_pending_events();
+    native_presentation_end();
     if(!easter_egg2)animate();
     game.score&=0xffffff;
     oiram_native_memory_end();
@@ -129,16 +134,19 @@ void oiram_native_clock(unsigned seconds){
     }
     draw_time();
 }
-const uint8_t *oiram_native_frame(void){
+static const uint8_t *convert_frame(const uint8_t *indexed){
     uint8_t lookup[256][4];
     for(unsigned i=0;i<256;i++){
         uint16_t c=gfx_palette[i];unsigned r=(c>>10)&31,g=((c>>4)&62)|((c>>15)&1),b=c&31;
         lookup[i][0]=(uint8_t)((r*255+15)/31);lookup[i][1]=(uint8_t)((g*255+31)/63);
         lookup[i][2]=(uint8_t)((b*255+15)/31);lookup[i][3]=255;
     }
-    for(unsigned i=0;i<320*240;i++)memcpy(rgba+i*4,lookup[native_indexed_frame[i]],4);
+    for(unsigned i=0;i<320*240;i++)memcpy(rgba+i*4,lookup[indexed[i]],4);
     return rgba;
 }
+const uint8_t *oiram_native_frame(void){return convert_frame(native_indexed_frame);}
+const uint8_t *oiram_native_frame_interpolated(double alpha){return convert_frame(native_presentation_frame(alpha));}
+void oiram_native_reset_interpolation(void){native_presentation_reset();}
 oiram_native_state_t oiram_native_state(void){
     return (oiram_native_state_t){oiram.x,oiram.y,oiram.vy,oiram.vx,oiram.momentum,oiram.flags,oiram.lives,
         game.coins,game.score,game.seconds,game.exit,game.enter_end,oiram.failed,game.level};

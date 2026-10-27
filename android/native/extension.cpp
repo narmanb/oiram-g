@@ -22,6 +22,8 @@ protected:
         ClassDB::bind_method(D_METHOD("step", "mask"), &OiramEngine::step);
         ClassDB::bind_method(D_METHOD("advance_clock", "seconds"), &OiramEngine::advance_clock);
         ClassDB::bind_method(D_METHOD("frame"), &OiramEngine::frame);
+        ClassDB::bind_method(D_METHOD("frame_interpolated", "alpha"), &OiramEngine::frame_interpolated);
+        ClassDB::bind_method(D_METHOD("reset_interpolation"), &OiramEngine::reset_interpolation);
         ClassDB::bind_method(D_METHOD("state"), &OiramEngine::state);
         ClassDB::bind_method(D_METHOD("set_easter_egg", "code"), &OiramEngine::set_easter_egg);
     }
@@ -59,6 +61,11 @@ public:
         std::memcpy(bytes.ptrw(), oiram_native_frame(), bytes.size());
         return bytes;
     }
+    PackedByteArray frame_interpolated(double alpha) const {
+        PackedByteArray bytes;bytes.resize(320*240*4);
+        std::memcpy(bytes.ptrw(),oiram_native_frame_interpolated(alpha),bytes.size());return bytes;
+    }
+    void reset_interpolation(){oiram_native_reset_interpolation();}
     Dictionary state() const {
         const auto s = oiram_native_state();
         Dictionary result;
