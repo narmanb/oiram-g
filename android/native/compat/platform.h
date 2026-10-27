@@ -7,6 +7,10 @@
 #include <string.h>
 typedef uint32_t uint24_t;
 typedef int32_t int24_t;
+void oiram_native_retire(void *p);
+void oiram_native_memory_begin(void);
+void oiram_native_memory_end(void);
+void oiram_native_memory_release(void);
 #define LCD_WIDTH 320
 #define LCD_HEIGHT 240
 #endif

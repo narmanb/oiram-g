@@ -36,6 +36,7 @@ int main(void) {
     assert(moveable_tile(1,-1));assert(moveable_tile(1,192));
     unsigned int x,y;tile_to_abs_xy_pos(tilemap.map+81,&x,&y);assert(x==16&&y==32);
     tile_to_abs_xy_pos(NULL,&x,&y);assert(x==0&&y==0);
+    tile_to_abs_xy_pos(tilemap.map+3-40,&x,&y);assert(x==48&&(int)y==-16);
     reset();add_coin(0,0);assert(game.coins==1&&game.score==200);
     for(int i=1;i<100;i++)add_coin(0,0);assert(game.coins==0&&oiram.lives==16);
     reset();eat_mushroom();assert(oiram.flags==1&&oiram.y==132&&oiram.hitbox.height==26);
@@ -59,6 +60,31 @@ int main(void) {
     while(num_simple_enemies)remove_simple_enemy(0);
     reset();for(int i=0;i<252;i++)add_simple_mover(NULL);
     while(num_simple_movers)remove_simple_mover(0);
+    /* Shell collision with an emerged chomper must not retain freed hit memory. */
+    reset();map[8*40+8]=252;
+    assert(oiram_native_configure(map,40,12,0,0,NULL,0,0,12,15,0,0,0));
+    assert(num_chompers==1);chomper[0]->y=130;
+    simple_move_t *shell=add_simple_mover(NULL);
+    shell->x=132;shell->y=130;shell->vx=5;shell->type=KOOPA_GREEN_SHELL_TYPE;
+    shell->hitbox.width=shell->hitbox.height=15;shell->sprite=koopa_green_shell_0;
+    oiram_native_step(0);assert(num_chompers==0);
+    /* A firing generator at the front of a full pool may evict itself. */
+    reset();
+    for(int i=0;i<64;i++){
+        enemy_t *e=add_simple_enemy(tilemap.map+9*40+8,BULLET_CREATOR_TYPE);
+        e->counter=0;
+    }
+    oiram_native_step(0);assert(num_simple_enemies==64);
+    /* A full mover pool may spawn a power-up from inside the active shell's collision. */
+    reset();map[9*40+10]=TILE_MUSHROOM_BOX;
+    assert(oiram_native_configure(map,40,12,0,0,NULL,0,0,12,15,0,0,0));
+    for(int i=0;i<252;i++){
+        simple_move_t *e=add_simple_mover(NULL);
+        e->x=i?5000:140;e->y=144;e->vx=i?0:5;
+        e->type=i?GOOMBA_TYPE:KOOPA_GREEN_SHELL_TYPE;
+        e->hitbox.width=e->hitbox.height=15;e->sprite=koopa_green_shell_0;
+    }
+    oiram_native_step(0);assert(num_simple_movers==252);
     reset();const uint8_t *pixels=oiram_native_frame();assert(pixels&&pixels[3]==255);
     int varied=0;for(int i=4;i<320*128*4;i+=4)if(memcmp(pixels,pixels+i,3))varied++;
     assert(varied>100);

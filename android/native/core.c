@@ -28,7 +28,7 @@ static bool configured,special_previous;
 static uint8_t rgba[320*240*4];
 void missing_appvars(void){abort();}
 void oiram_native_shutdown(void){
-    configured=false;
+    configured=false;oiram_native_memory_release();
     while(num_simple_enemies)remove_simple_enemy(0);
     while(num_simple_movers)remove_simple_mover(0);
     while(num_chompers)remove_chomper(0);
@@ -111,11 +111,13 @@ void oiram_native_step(uint32_t mask){
     if(allow_up_press)pressed_up=jump;
     else if(!jump){allow_up_press=true;if(oiram.vy< -5)oiram.vy=-5;}
     pressed_alpha=special&&!special_previous;special_previous=special;
+    oiram_native_memory_begin();
     move_oiram();
     gfx_Tilemap(&tilemap,oiram.scrollx,oiram.scrolly);
     handle_pending_events();
     if(!easter_egg2)animate();
     game.score&=0xffffff;
+    oiram_native_memory_end();
 }
 void oiram_native_clock(unsigned seconds){
     if(!configured||game.exit)return;

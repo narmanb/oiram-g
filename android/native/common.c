@@ -25,8 +25,11 @@ void tile_to_abs_xy_pos(uint8_t *tile,unsigned int *x,unsigned int *y) {
      * Avoid the original undefined subtraction from a null pointer. */
     if(!tile||!tilemap.map||!tilemap.width){*x=*y=0;return;}
     ptrdiff_t offset=tile-tilemap.map;
-    *y=(unsigned)(offset/tilemap.width)*16;
-    *x=(unsigned)(offset%tilemap.width)*16;
+    ptrdiff_t row=offset/(ptrdiff_t)tilemap.width;
+    ptrdiff_t column=offset%(ptrdiff_t)tilemap.width;
+    if(column<0){column+=tilemap.width;row--;}
+    *y=(unsigned)(row*16);
+    *x=(unsigned)(column*16);
 }
 #define TOGGLE(var,a,b) var=(var==a)?b:a
 void animate(void) {
