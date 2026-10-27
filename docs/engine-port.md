@@ -157,3 +157,28 @@ sets Godot's target cap to 60, and displays measured `Engine.get_frames_per_seco
 when enabled. Classic mode caps at30 and uses `frame()`. Physics, countdown, enemy
 activation, assets, pause behavior and saved progression are unchanged. Android
 sustained FPS still requires physical-device measurement with the visible counter.
+
+## Finer presentation added in 0.1.3
+
+The old 320x240 interpolation remains available through `frame_interpolated` for
+regression comparisons. Smooth gameplay now uses `frame_smooth(alpha)`, a 640x480
+RGBA image. Its independent indexed rasterizer uses the same captured commands,
+identity matches, current map snapshots and discontinuity checks, but multiplies
+coordinates by two *before* rounding. A one-source-pixel movement therefore has
+a distinct half-pixel intermediate position. Sprite artwork is copied as sharp
+2x2 blocks without blending, smoothing filters or new animation artwork. This is
+half-source-pixel precision, not arbitrary display-resolution positioning.
+
+The fine rasterizer neither changes GraphX target/clip globals nor calls any
+gameplay routines. It starts from an exact 2x copy of the authentic framebuffer
+to retain the HUD, then replays captured tilemaps/sprites in order. No-history,
+overflow and history-reset cases return a complete upscaled authentic image.
+The original simulation framebuffer and all gameplay coordinates remain intact.
+The shared RGBA converter uses aligned 32-bit palette lookups at either output
+size. The shell recreates its texture on size changes between classic/smooth.
+
+The optional FPS overlay additionally reports rolling foreground callback mean,
+p95 and late-frame percentage (>1.5 times the 30/60 FPS frame budget). It uses
+monotonic callback observations, holds at most 180 intervals, refreshes the text
+at most twice a second, and resets on pause/resume/mode changes. It does not
+measure compositor presentation timestamps or prove device refresh behavior.

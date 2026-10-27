@@ -6,12 +6,20 @@
 #include "graphx.h"
 #include "presentation.h"
 #include "oiram.h"
+/* New rendering entry points: declared here so the pre-implementation test links red. */
+extern const uint8_t *native_presentation_frame_fine(double alpha);
+extern const uint8_t *oiram_native_frame_smooth(double alpha);
 static uint8_t tile_a[258]={16,16},tile_b[258]={16,16};
 static uint8_t image[11]={3,3,7,7,7,7,7,7,7,7,7};
 static uint8_t map[40*12],saved[320*240],expected[320*240];
 static gfx_sprite_t *tile_frames[256];
 static gfx_tilemap_t tm;
 static int actor;
+static bool fine_is_upscaled(const uint8_t *fine,const uint8_t *original){
+    for(int y=0;y<480;y++)for(int x=0;x<640;x++)
+        if(fine[y*640+x]!=original[(y/2)*320+x/2])return false;
+    return true;
+}
 static void begin(unsigned scroll,int x){
     gfx_SetClipRegion(0,0,320,128);
     native_presentation_begin();
@@ -34,6 +42,16 @@ int main(void){
     assert(native_presentation_frame(0.0)[20*320+10]==7);
     assert(!memcmp(native_presentation_frame(NAN),saved,sizeof saved));
     assert(!memcmp(native_presentation_frame(INFINITY),saved,sizeof saved));
+    assert(fine_is_upscaled(native_presentation_frame_fine(1),saved));
+    /* One original pixel of motion must have a distinct half-pixel midpoint. */
+    native_presentation_reset();begin(0,10);begin(0,11);
+    const uint8_t *fine=native_presentation_frame_fine(0.5);
+    assert(fine[40*640+20]==1&&fine[40*640+21]==7&&fine[40*640+26]==7&&fine[40*640+27]==1);
+    assert(native_presentation_frame_fine(0)[40*640+20]==7);
+    assert(native_presentation_frame_fine(1)[40*640+21]==1);
+    assert(fine_is_upscaled(native_presentation_frame_fine(NAN),native_indexed_frame));
+    assert(fine_is_upscaled(native_presentation_frame_fine(INFINITY),native_indexed_frame));
+    memcpy(saved,native_indexed_frame,sizeof saved);
     /* Replay snapshots the map and animation pointers before gameplay mutates them. */
     map[0]=1;tile_frames[1]=(gfx_sprite_t*)tile_a;
     assert(!memcmp(native_presentation_frame(1),saved,sizeof saved));
@@ -45,8 +63,23 @@ int main(void){
     gfx_Tilemap(&tm,2,0);memcpy(expected,native_indexed_frame,sizeof expected);
     memcpy(native_indexed_frame,saved,sizeof saved);
     assert(!memcmp(native_presentation_frame(0.5),expected,sizeof expected));
+    native_presentation_reset();begin(0,-1);begin(1,-1);
+    fine=native_presentation_frame_fine(0.5);
+    assert(fine[0*640+30]==1&&fine[0*640+31]==2&&fine[0*640+62]==2&&fine[0*640+63]==1);
+    assert(fine_is_upscaled(native_presentation_frame_fine(1),native_indexed_frame));
+    /* Negative sprite positions and half-pixel clipping remain bounded and crisp. */
+    native_presentation_reset();
+    for(int i=0;i<2;i++){
+        gfx_SetClipRegion(1,1,319,127);native_presentation_begin();gfx_Tilemap(&tm,0,0);
+        native_presentation_entity(&actor,0);gfx_TransparentSprite((gfx_sprite_t*)image,-2+i,1);
+        gfx_TransparentSprite((gfx_sprite_t*)image,318+i,126);native_presentation_end();
+    }
+    assert(fine_is_upscaled(native_presentation_frame_fine(1),native_indexed_frame));
+    int clip_before[4],clip_after[4];gfx_native_clip(clip_before);
+    native_presentation_frame_fine(0.5);gfx_native_clip(clip_after);assert(!memcmp(clip_before,clip_after,sizeof clip_before));
     native_presentation_reset();begin(0,10);begin(0,200);
     assert(native_presentation_frame(0.5)[20*320+200]==7); /* no interpolation through teleports */
+    assert(fine_is_upscaled(native_presentation_frame_fine(0.5),native_indexed_frame));
     /* Allocation reuse is never a match for a destroyed entity. */
     void *first=oiram_native_calloc(1,8);uint64_t first_id=oiram_native_object_id(first);
     native_presentation_reset();native_presentation_begin();gfx_Tilemap(&tm,0,0);
@@ -61,6 +94,9 @@ int main(void){
     native_presentation_begin();gfx_Tilemap(&tm,0,0);
     for(int i=0;i<5000;i++)gfx_TransparentSprite((gfx_sprite_t*)image,14,20);
     native_presentation_end();assert(!memcmp(native_presentation_frame(0.5),native_indexed_frame,sizeof saved));
+    assert(fine_is_upscaled(native_presentation_frame_fine(0.5),native_indexed_frame));
+    native_presentation_reset();
+    assert(fine_is_upscaled(native_presentation_frame_fine(0.5),native_indexed_frame));
     /* Rendering between steps must not mutate original gameplay or its framebuffer. */
     memset(map,27,sizeof map);for(int x=0;x<40;x++)map[10*40+x]=52;map[9*40+2]=240;
     assert(oiram_native_configure(map,40,12,0,0,NULL,0,0,1,15,0,0,0));
@@ -70,6 +106,10 @@ int main(void){
         const uint8_t *frame=oiram_native_frame();
         static uint8_t rgba[320*240*4];memcpy(rgba,frame,sizeof rgba);
         oiram_native_frame_interpolated(0.25);oiram_native_frame_interpolated(0.5);oiram_native_frame_interpolated(0.75);
+        oiram_native_frame_smooth(0.25);oiram_native_frame_smooth(0.5);oiram_native_frame_smooth(0.75);
+        const uint8_t *smooth=oiram_native_frame_smooth(1);
+        for(int y=0;y<480;y++)for(int x=0;x<640;x++)
+            assert(!memcmp(smooth+(y*640+x)*4,rgba+((y/2)*320+x/2)*4,4));
         oiram_native_state_t after=oiram_native_state();assert(!memcmp(&before,&after,sizeof before));
         assert(!memcmp(rgba,oiram_native_frame(),sizeof rgba));
         assert(!memcmp(rgba,oiram_native_frame_interpolated(1),sizeof rgba));

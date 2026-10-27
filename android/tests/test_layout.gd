@@ -273,7 +273,7 @@ func _run() -> void:
 	# The headless dummy renderer retains creation data but does not update textures.
 	shell.texture = null
 	shell._render_frame()
-	check(shell.texture.get_image().get_data() == shell.engine.frame_interpolated(0.5), "Smooth mode displays native interpolation at accumulator alpha")
+	check(shell.texture.get_image().get_data() == shell.engine.frame_smooth(0.5), "Smooth mode displays finer native interpolation at accumulator alpha")
 	shell.settings.target_fps = 30
 	shell.texture = null
 	shell._render_frame()

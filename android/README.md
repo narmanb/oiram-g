@@ -48,7 +48,20 @@ sprite/camera positions between fixed gameplay updates, preserving the current
 game speed and C physics. **30 FPS classic** uses the original framebuffer cadence.
 **Show FPS** displays the measured engine frame rate in game; reaching the target
 depends on the device's rendering performance, refresh rate and power settings.
-The original animation cadence and crisp pixel grid remain unchanged.
+The original animation cadence remains unchanged.
+
+In **0.1.3**, smooth mode uses a 640x480 presentation canvas: sprites and camera
+can move by half an original pixel, while each original artwork pixel stays a
+sharp 2x2 block. This removes a source of repeated/stepped positions in the older
+320x240 interpolator. Gameplay still updates at the same 30 Hz. Classic mode
+retains the original 320x240 framebuffer.
+
+With Show FPS enabled, the overlay also reports mean callback interval, p95
+interval (95% of the recent intervals are at or below it), and the percentage
+over 1.5 times the selected frame budget. At steady 60 FPS, intervals are about
+16.7 ms; spikes reveal pacing problems hidden by an average FPS counter. The
+window covers the latest 180 foreground intervals and resets on pause/resume.
+These measure application callback pacing, not Android's display compositor.
 
 ## Editing
 

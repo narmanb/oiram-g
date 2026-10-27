@@ -15,6 +15,8 @@ void oiram_native_step(uint32_t mask);
 void oiram_native_clock(unsigned seconds);
 const uint8_t *oiram_native_frame(void);
 const uint8_t *oiram_native_frame_interpolated(double alpha);
+/* Render-only 640x480 RGBA; original gameplay coordinates are unchanged. */
+const uint8_t *oiram_native_frame_smooth(double alpha);
 void oiram_native_reset_interpolation(void);
 oiram_native_state_t oiram_native_state(void);
 void oiram_native_shutdown(void);

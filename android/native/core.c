@@ -26,7 +26,7 @@ char *pack_author;
 static uint8_t *map_allocation;
 static unsigned int warp_storage[508];
 static bool configured,special_previous;
-static uint8_t rgba[320*240*4];
+static uint32_t rgba[320*240],smooth_rgba[640*480];
 void missing_appvars(void){abort();}
 void oiram_native_shutdown(void){
     configured=false;native_presentation_reset();oiram_native_memory_release();
@@ -134,18 +134,19 @@ void oiram_native_clock(unsigned seconds){
     }
     draw_time();
 }
-static const uint8_t *convert_frame(const uint8_t *indexed){
-    uint8_t lookup[256][4];
+static const uint8_t *convert_pixels(const uint8_t *indexed,uint32_t *output,unsigned count){
+    uint32_t lookup[256];
     for(unsigned i=0;i<256;i++){
         uint16_t c=gfx_palette[i];unsigned r=(c>>10)&31,g=((c>>4)&62)|((c>>15)&1),b=c&31;
-        lookup[i][0]=(uint8_t)((r*255+15)/31);lookup[i][1]=(uint8_t)((g*255+31)/63);
-        lookup[i][2]=(uint8_t)((b*255+15)/31);lookup[i][3]=255;
+        uint8_t pixel[4]={(uint8_t)((r*255+15)/31),(uint8_t)((g*255+31)/63),(uint8_t)((b*255+15)/31),255};
+        memcpy(&lookup[i],pixel,4);
     }
-    for(unsigned i=0;i<320*240;i++)memcpy(rgba+i*4,lookup[indexed[i]],4);
-    return rgba;
+    for(unsigned i=0;i<count;i++)output[i]=lookup[indexed[i]];
+    return (const uint8_t*)output;
 }
-const uint8_t *oiram_native_frame(void){return convert_frame(native_indexed_frame);}
-const uint8_t *oiram_native_frame_interpolated(double alpha){return convert_frame(native_presentation_frame(alpha));}
+const uint8_t *oiram_native_frame(void){return convert_pixels(native_indexed_frame,rgba,320*240);}
+const uint8_t *oiram_native_frame_interpolated(double alpha){return convert_pixels(native_presentation_frame(alpha),rgba,320*240);}
+const uint8_t *oiram_native_frame_smooth(double alpha){return convert_pixels(native_presentation_frame_fine(alpha),smooth_rgba,640*480);}
 void oiram_native_reset_interpolation(void){native_presentation_reset();}
 oiram_native_state_t oiram_native_state(void){
     return (oiram_native_state_t){oiram.x,oiram.y,oiram.vy,oiram.vx,oiram.momentum,oiram.flags,oiram.lives,

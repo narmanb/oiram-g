@@ -58,3 +58,11 @@ These are suggestions, not user-approved scope:
 Suggested earlier order was suspend/resume and time trials, then warp editing.
 The user's latest interest puts presentation/performance and mobile shell pickup
 ahead of that proposed order; no implementation order has been agreed.
+
+## Follow-up on presentation
+
+The user confirmed that smooth mode reads 60 FPS but feels only slightly smoother
+and prefers the finer-position rendering approach while retaining current gameplay
+Hz. Version 0.1.3 implements a bounded 2x presentation canvas (half-source-pixel
+positions) and optional foreground frame-time diagnostics for device comparison.
+Actual device benefit remains to be established. Shell assistance remains deferred.

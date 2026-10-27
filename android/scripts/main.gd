@@ -3,6 +3,7 @@ extends Control
 const SaveStore = preload("res://scripts/save_store.gd")
 const Controls = preload("res://scripts/controls.gd")
 const TouchLayout = preload("res://scripts/touch_layout.gd")
+const FramePacing = preload("res://scripts/frame_pacing.gd")
 const TICK := 1.0 / 30.0
 const INK := Color("edf4ea")
 const MUTED := Color("a3b3bd")
@@ -40,6 +41,8 @@ var notice := ""
 var remap_action := ""
 var touch_layout: Control
 var fps_label: Label
+var pacing = FramePacing.new()
+var fps_updated_usec := 0
 
 func _ready() -> void:
 	store.load_data()
@@ -81,6 +84,8 @@ func _ready() -> void:
 	fps_label = Label.new()
 	fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fps_label.add_theme_color_override("font_color", ACCENT)
+	fps_label.add_theme_font_size_override("font_size", 14)
+	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	add_child(fps_label)
 	_update_fps()
 	touch_layout = TouchLayout.new()
@@ -228,6 +233,7 @@ func _read_pack(path: String, imported: bool) -> bool:
 	return true
 
 func _menu() -> void:
+	pacing.reset()
 	if is_instance_valid(editor):
 		editor.hide()
 	running = false
@@ -310,6 +316,7 @@ func _start(level_index: int) -> void:
 	_begin_level(pack.levels[stage])
 
 func _begin_level(level: Dictionary) -> void:
+	pacing.reset()
 	# Restart checkpoints preserve form, while timed/animation-only bonuses reset.
 	checkpoint.flags = int(checkpoint.get("flags", 0)) & 19
 	engine.set_easter_egg(clampi(int(settings.get("secret_code", 0)), 0, 99999999))
@@ -341,7 +348,9 @@ func _begin_level(level: Dictionary) -> void:
 func _process(delta: float) -> void:
 	_update_fps()
 	if not running or paused or engine == null:
+		pacing.reset()
 		return
+	pacing.record(Time.get_ticks_usec())
 	# Countdown follows real elapsed foreground time, independently of simulation ticks.
 	var clock_now = Time.get_ticks_usec()
 	clock_accumulator += maxf(0.0, float(clock_now - clock_last_usec) / 1000000.0)
@@ -364,14 +373,16 @@ func _process(delta: float) -> void:
 
 func _render_frame() -> void:
 	var pixels: PackedByteArray
-	if int(settings.get("target_fps", 60)) == 60 and engine.has_method("frame_interpolated"):
-		pixels = engine.frame_interpolated(clampf(accumulator / TICK, 0.0, 1.0))
+	var dimensions := Vector2i(320, 240)
+	if int(settings.get("target_fps", 60)) == 60:
+		dimensions = Vector2i(640, 480)
+		pixels = engine.frame_smooth(clampf(accumulator / TICK, 0.0, 1.0))
 	else:
 		pixels = engine.frame()
-	if pixels.size() != 320 * 240 * 4:
+	if pixels.size() != dimensions.x * dimensions.y * 4:
 		return
-	var image = Image.create_from_data(320, 240, false, Image.FORMAT_RGBA8, pixels)
-	if texture == null:
+	var image = Image.create_from_data(dimensions.x, dimensions.y, false, Image.FORMAT_RGBA8, pixels)
+	if texture == null or texture.get_size() != Vector2(dimensions):
 		texture = ImageTexture.create_from_image(image)
 		screen.texture = texture
 	else:
@@ -435,6 +446,7 @@ func _toggle_pause() -> void:
 
 func _pause(title: String, message: String = "", capture: bool = true) -> void:
 	paused = true
+	pacing.reset()
 	controls.enabled = false
 	controls.pause_enabled = title == "PAUSED" and not terminal
 	controls.release_all()
@@ -466,6 +478,7 @@ func _resume() -> void:
 	accumulator = 0.0
 	clock_accumulator = 0.0
 	clock_last_usec = Time.get_ticks_usec()
+	pacing.reset()
 	if engine != null and engine.has_method("reset_interpolation"): engine.reset_interpolation()
 	if is_instance_valid(overlay):
 		overlay.queue_free()
@@ -535,6 +548,7 @@ func _settings_menu() -> void:
 		settings.target_fps = presentation.get_item_id(index)
 		Engine.max_fps = int(settings.target_fps)
 		accumulator = 0.0
+		pacing.reset()
 		if engine != null and engine.has_method("reset_interpolation"): engine.reset_interpolation()
 		_save_settings())
 	column.add_child(presentation)
@@ -655,14 +669,23 @@ func _layout() -> void:
 	touch_layout.configure(size, settings)
 	touch_regions.clear()
 	if show_touch: touch_regions.assign(touch_layout.regions)
-	fps_label.position = Vector2(maxf(12, size.x - 135), 68)
+	fps_label.position = Vector2(maxf(12, size.x - 240), 68)
+	fps_label.size.x = minf(220, size.x - 24)
 	fps_label.move_to_front()
 	queue_redraw()
 
-func _update_fps() -> void:
+func _update_fps(force: bool = false) -> void:
 	if not is_instance_valid(fps_label): return
+	var was_visible := fps_label.visible
 	fps_label.visible = bool(settings.get("show_fps", false))
+	if not fps_label.visible: return
+	var now := Time.get_ticks_usec()
+	if not force and was_visible and now - fps_updated_usec < 500000: return
+	fps_updated_usec = now
 	fps_label.text = "%d FPS" % roundi(Engine.get_frames_per_second())
+	var timings: Dictionary = pacing.summary(int(settings.get("target_fps", 60)))
+	if timings.count > 0:
+		fps_label.text += "\n%.1f ms · p95 %.1f ms\nLate frames: %.0f%%" % [timings.mean_ms, timings.p95_ms, timings.late_percent]
 
 func _edit_touch_layout() -> void:
 	if running and not paused: _pause("PAUSED")

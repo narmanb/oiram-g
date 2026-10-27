@@ -10,6 +10,8 @@ void native_presentation_capture(bool enabled);
 void native_presentation_sprite(const gfx_sprite_t *sprite,int x,int y,bool transparent,const int clip[4]);
 void native_presentation_tilemap(const gfx_tilemap_t *map,unsigned sx,unsigned sy,const int clip[4]);
 const uint8_t *native_presentation_frame(double alpha);
+/* 640x480 indexed presentation; positions resolve half an original pixel. */
+const uint8_t *native_presentation_frame_fine(double alpha);
 uint8_t *gfx_native_target(uint8_t *target);
 void gfx_native_clip(int out[4]);
 #endif

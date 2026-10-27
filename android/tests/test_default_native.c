@@ -30,6 +30,12 @@ int main(int argc,char **argv){
                     memcpy(original,oiram_native_frame(),sizeof original);
                     oiram_native_state_t before=oiram_native_state();
                     oiram_native_frame_interpolated(0.5);
+                    if(tick%300==0){
+                        oiram_native_frame_smooth(0.5);
+                        const uint8_t *fine=oiram_native_frame_smooth(1);
+                        for(int y=0;y<240;y++)for(int x=0;x<320;x++)
+                            assert(!memcmp(fine+(y*2*640+x*2)*4,original+(y*320+x)*4,4));
+                    }
                     oiram_native_state_t after=oiram_native_state();
                     assert(!memcmp(&before,&after,sizeof before));
                     assert(!memcmp(original,oiram_native_frame_interpolated(1),sizeof original));

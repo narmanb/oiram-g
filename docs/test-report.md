@@ -117,3 +117,37 @@ and unchanged mechanics; they do not establish sustained physical-device 60 FPS.
 The new in-game counter exposes the device's actual frame rate.
 
 Final v0.1.2 APK SHA256: `b31402b3b3684fc621a4e2ae38c2f557cddc5322f44f1cae9f4dfd2e36904fe4`; size 84158854 bytes. Version code3 uses the same signing certificate as v0.1.1.
+
+## Finer presentation and timing diagnostics (0.1.3-private)
+
+- Extended ASan/UBSan presentation tests assert a distinct half-pixel sprite
+  position for a one-original-pixel move, half-pixel camera motion, clipped
+  negative/right-edge sprites, alpha1 exact 2x framebuffer equality, nonfinite
+  alpha, teleport/fallback behavior and unchanged GraphX clips/gameplay state.
+- `test_pacing.gd`: 22 checks for steady versus uneven intervals with the same
+  mean FPS, p95, late-frame threshold, bounded history, malformed sample rejection,
+  reset/baseline behavior, real native 640x480 smooth images, live texture-size
+  switches and unchanged state, and pause/resume integration.
+- Default-stage scenarios now also sample fine rendering, comparing alpha1 to
+  the authentic framebuffer and asserting unchanged gameplay state.
+- `bash scripts/benchmark-presentation.sh` measures original and fine replay plus
+  RGBA conversion on this host only, excluding GDExtension copying, Godot upload,
+  display/compositor and Android thermals. A 1,200-frame run measured previous
+  mean 0.116 ms / p95 0.230 ms, fine mean 0.270 ms / p95 0.446 ms. Both runs ended
+  at identical native states. These figures are not phone FPS predictions.
+
+The new renderer still uses original animation artwork and half-source-pixel
+position resolution. Device smoothness and actual compositor pacing require
+testing the APK on the user's phone. No simulation-frequency or refresh-rate
+change is claimed.
+
+The full v0.1.3 build passed the required 21,420 pack checks, 70 native-shell,
+35 touch-input, 163 layout, 22 pacing and 32 editor checks, the shell suite,
+native gameplay/presentation sanitizer suites and all 96 default-stage scenarios.
+The default-stage fine comparison samples the first pixel of each enlarged block;
+the isolated presentation suite additionally compares every pixel in all blocks.
+Independent read-only review found no Critical or Important defects.
+
+Final v0.1.3 APK SHA256: `fd8cd6be16124948c8362915d850b7bf3d97568233614bcd25b8846135161e67`;
+size 84164177 bytes. Version code 4 has the same verified signing certificate as
+v0.1.2. The exported ARM64 native library contains the new `frame_smooth` API.

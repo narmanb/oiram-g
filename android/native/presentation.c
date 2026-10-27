@@ -100,3 +100,54 @@ const uint8_t *native_presentation_frame(double alpha){
     gfx_native_target(old_target);gfx_SetClipRegion(old_clip[0],old_clip[1],old_clip[2],old_clip[3]);
     return rendered;
 }
+
+/* Isolated 2x rasterizer: never changes GraphX's gameplay target or clip state.
+ * Artwork is replicated exactly, while actor/camera positions can lie between
+ * original pixels. Scaling a completed 320x240 frame cannot do this.
+ */
+enum { FINE_WIDTH=640, FINE_HEIGHT=480, FINE_SCALE=2 };
+static uint8_t fine_frame[FINE_WIDTH*FINE_HEIGHT];
+static void fine_sprite(const gfx_sprite_t *s,int x,int y,bool transparent,const int clip[4]){
+    if(!s)return;
+    int x0=x>clip[0]?x:clip[0],y0=y>clip[1]?y:clip[1];
+    int x1=x+s->width*FINE_SCALE,y1=y+s->height*FINE_SCALE;
+    if(x1>clip[2])x1=clip[2];if(y1>clip[3])y1=clip[3];
+    for(int dy=y0;dy<y1;dy++){
+        const uint8_t *source=s->data+((dy-y)/FINE_SCALE)*s->width;
+        uint8_t *dest=fine_frame+dy*FINE_WIDTH;
+        for(int dx=x0;dx<x1;dx++){
+            uint8_t pixel=source[(dx-x)/FINE_SCALE];
+            if(pixel||!transparent)dest[dx]=pixel;
+        }
+    }
+}
+const uint8_t *native_presentation_frame_fine(double alpha){
+    for(int y=0;y<240;y++){
+        uint8_t *row=fine_frame+y*FINE_SCALE*FINE_WIDTH;
+        for(int x=0;x<320;x++)row[x*2]=row[x*2+1]=native_indexed_frame[y*320+x];
+        memcpy(row+FINE_WIDTH,row,FINE_WIDTH);
+    }
+    if(capturing||overflow||!count||!previous_count)return fine_frame;
+    if(!isfinite(alpha))alpha=1;
+    if(alpha<0)alpha=0;if(alpha>1)alpha=1;
+    for(int i=0;i<count;i++){
+        const command_t *c=&current[i],*p=match(c);
+        int x=c->x*FINE_SCALE,y=c->y*FINE_SCALE,clip[4];
+        bool interpolate=p&&p->type==c->type&&p->width==c->width&&p->height==c->height&&abs(p->x-c->x)<=64&&abs(p->y-c->y)<=64;
+        if(interpolate){x=lerp_pixel(p->x*2,c->x*2,alpha);y=lerp_pixel(p->y*2,c->y*2,alpha);}
+        for(int j=0;j<4;j++){
+            clip[j]=interpolate?lerp_pixel(p->clip[j]*2,c->clip[j]*2,alpha):c->clip[j]*2;
+            int limit=(j&1)?FINE_HEIGHT:FINE_WIDTH;
+            if(clip[j]<0)clip[j]=0;if(clip[j]>limit)clip[j]=limit;
+        }
+        if(c->type==SPRITE){fine_sprite(c->sprite,x,y,c->transparent,clip);continue;}
+        const gfx_tilemap_t *t=&maps[c->map].map;
+        for(unsigned yy=0;yy<t->draw_height;yy++)for(unsigned xx=0;xx<t->draw_width;xx++){
+            int tx=x/32+(int)xx,ty=y/32+(int)yy;
+            uint8_t n=27;
+            if(tx>=0&&ty>=0&&tx<(int)t->width&&ty<(int)t->height)n=t->map[ty*t->width+tx];
+            fine_sprite(t->tiles[n],(int)xx*32-x%32,(int)yy*32-y%32,false,clip);
+        }
+    }
+    return fine_frame;
+}
