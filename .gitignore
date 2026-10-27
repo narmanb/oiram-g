@@ -1,3 +1,16 @@
 bin/
 obj/
 src/gfx/*.8xv
+
+# Native Android port build products
+android/.godot/
+android/bin/
+android/native/generated/
+android/native/.build/
+android/native/.sconsign.dblite
+android/native/*.os
+build/
+.deps/
+__pycache__/
+
+android/.android-build/

@@ -1,0 +1,26 @@
+import os
+
+# Bindings target Godot 4.5's stable ABI, supported by the pinned 4.6.3 runtime.
+cpp_dir = os.environ.get("GODOT_CPP_DIR", "/workspace/tools/godot-cpp")
+env = SConscript(os.path.join(cpp_dir, "SConstruct"))
+env.Append(CPPPATH=[".", "compat", "../../src"])
+env.Append(LINKFLAGS=["-Wl,--no-undefined"])
+if env["platform"] == "android":
+    # The official export template already provides libc++_shared.so.
+    env.Append(LINKFLAGS=["-Wl,-z,max-page-size=16384"])
+
+cenv = env.Clone()
+cenv.Append(CFLAGS=["-std=c11", "-include", File("compat/platform.h").abspath])
+cenv.Append(CPPDEFINES=["OIRAM_PORTABLE"])
+core_sources = Glob("*.c")
+core_sources += [File("generated/" + name + ".c") for name in (
+    "oiram", "enemies", "events", "powerups", "simple_mover",
+    "tile_handlers", "lower", "images",
+)]
+objects = []
+for source in core_sources:
+    target = ".build/" + env["platform"] + "/" + source.name.removesuffix(".c")
+    objects += cenv.SharedObject(target=target, source=source)
+objects += env.SharedObject(target=".build/" + env["platform"] + "/extension", source="extension.cpp")
+library = env.SharedLibrary("../bin/liboiram" + env["suffix"] + env["SHLIBSUFFIX"], objects)
+Default(library)
