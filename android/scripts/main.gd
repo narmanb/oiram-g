@@ -56,6 +56,8 @@ func _ready() -> void:
 	settings.alternate = settings.get("alternate", false) == true
 	settings.show_fps = settings.get("show_fps", false) == true
 	settings.target_fps = 30 if settings.get("target_fps", 60) == 30 else 60
+	var resolution: Variant = settings.get("render_resolution", 0)
+	settings.render_resolution = int(resolution) if resolution in [2, 4] else 0
 	Engine.max_fps = int(settings.target_fps)
 	controls.alternate = bool(settings.get("alternate", false))
 	if settings.get("joy_buttons") is Dictionary:
@@ -371,12 +373,30 @@ func _process(delta: float) -> void:
 	if running:
 		_render_frame()
 
+func _smooth_scale() -> int:
+	var requested: Variant = settings.get("render_resolution", 0)
+	if requested in [2, 4]: return int(requested)
+	# UI coordinates may be stretched onto a higher-resolution phone display.
+	var transform := get_viewport().get_final_transform() * screen.get_global_transform_with_canvas()
+	var physical_width := transform.basis_xform(Vector2(screen.size.x, 0)).length()
+	var physical_height := transform.basis_xform(Vector2(0, screen.size.y)).length()
+	return 4 if physical_width > 640.01 or physical_height > 480.01 else 2
+
+func _set_render_resolution(value: int) -> void:
+	settings.render_resolution = value if value in [2, 4] else 0
+	pacing.reset()
+	fps_updated_usec = 0
+	_save_settings()
+	if running and paused and engine != null: _render_frame()
+	_update_fps(true)
+
 func _render_frame() -> void:
 	var pixels: PackedByteArray
 	var dimensions := Vector2i(320, 240)
 	if int(settings.get("target_fps", 60)) == 60:
-		dimensions = Vector2i(640, 480)
-		pixels = engine.frame_smooth(clampf(accumulator / TICK, 0.0, 1.0))
+		var scale := _smooth_scale()
+		dimensions *= scale
+		pixels = engine.frame_smooth(clampf(accumulator / TICK, 0.0, 1.0), scale)
 	else:
 		pixels = engine.frame()
 	if pixels.size() != dimensions.x * dimensions.y * 4:
@@ -553,6 +573,16 @@ func _settings_menu() -> void:
 		_save_settings())
 	column.add_child(presentation)
 	column.add_child(_label("60 FPS smooths motion without changing game speed.", 16, MUTED))
+	column.add_child(_label("Smooth rendering resolution", 18, MUTED))
+	var resolution = OptionButton.new()
+	resolution.name = "RenderResolution"
+	resolution.add_item("Auto (fit screen)", 0)
+	resolution.add_item("640 × 480 (lighter)", 2)
+	resolution.add_item("1280 × 960 (finer motion)", 4)
+	resolution.selected = resolution.get_item_index(int(settings.get("render_resolution", 0)))
+	resolution.item_selected.connect(func(index: int): _set_render_resolution(resolution.get_item_id(index)))
+	column.add_child(resolution)
+	column.add_child(_label("Auto fits your screen. Higher resolution uses more power. Classic mode keeps its original resolution.", 16, MUTED))
 	for entry in [["opacity", "Touch opacity", 0.25, 1.0, 0.05, 0.75], ["size", "Touch size", 0.7, 1.3, 0.05, 1.0]]:
 		column.add_child(_label(entry[1], 18, MUTED))
 		var slider = HSlider.new()
@@ -683,6 +713,8 @@ func _update_fps(force: bool = false) -> void:
 	if not force and was_visible and now - fps_updated_usec < 500000: return
 	fps_updated_usec = now
 	fps_label.text = "%d FPS" % roundi(Engine.get_frames_per_second())
+	if running and texture != null:
+		fps_label.text += " · %d×%d" % [texture.get_width(), texture.get_height()]
 	var timings: Dictionary = pacing.summary(int(settings.get("target_fps", 60)))
 	if timings.count > 0:
 		fps_label.text += "\n%.1f ms · p95 %.1f ms\nLate frames: %.0f%%" % [timings.mean_ms, timings.p95_ms, timings.late_percent]

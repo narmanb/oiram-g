@@ -182,3 +182,25 @@ p95 and late-frame percentage (>1.5 times the 30/60 FPS frame budget). It uses
 monotonic callback observations, holds at most 180 intervals, refreshes the text
 at most twice a second, and resets on pause/resume/mode changes. It does not
 measure compositor presentation timestamps or prove device refresh behavior.
+
+## Selectable presentation resolution added in 0.1.4
+
+The same replay rasterizer now accepts scales 2/4; output is bounded to 640x480
+or 1280x960. Position interpolation and clip rounding happen after multiplying
+by the requested scale, so 4x resolves quarter-source-pixel positions. Artwork
+pixels remain exact 2x2/4x4 blocks. Power-of-two shifts replace per-output-pixel
+variable division; a bounded shared indexed buffer and RGBA buffer cover the
+largest output. Unsupported scales normalize to2 before any size calculation.
+The old `native_presentation_frame_fine`/`oiram_native_frame_smooth` remain 2x
+wrappers. GDExtension `frame_smooth(alpha, scale=2)` retains one-argument callers.
+
+The saved `render_resolution` preference is 0 (Auto), 2 or 4. Auto combines the
+viewport's final transform and screen canvas transform to measure the physical
+gameplay image, selecting 4 if its width/height exceeds 640/480 (with 0.01 pixel
+floating-point tolerance), otherwise 2. Layout uses the same original 320x240
+logical area regardless of texture size, preventing resolution feedback loops.
+Classic bypasses this selection and renders the authentic 320x240 framebuffer.
+Changing the saved resolution choice clears old timing observations. Rendering
+replaces the Godot texture as needed and preserves simulation/history. The FPS overlay reports actual
+texture dimensions. Auto chooses for display size, not changing workload or FPS;
+the user can select the lighter override for power/performance.

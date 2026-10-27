@@ -36,6 +36,13 @@ int main(int argc,char **argv){
                         for(int y=0;y<240;y++)for(int x=0;x<320;x++)
                             assert(!memcmp(fine+(y*2*640+x*2)*4,original+(y*320+x)*4,4));
                     }
+                    if(tick%600==0){
+                        oiram_native_frame_scaled(0.25,4);
+                        const uint8_t *high=oiram_native_frame_scaled(1,4);
+                        for(int y=0;y<240;y++)for(int x=0;x<320;x++)
+                            for(int sy=0;sy<4;sy++)for(int sx=0;sx<4;sx++)
+                                assert(!memcmp(high+((y*4+sy)*1280+x*4+sx)*4,original+(y*320+x)*4,4));
+                    }
                     oiram_native_state_t after=oiram_native_state();
                     assert(!memcmp(&before,&after,sizeof before));
                     assert(!memcmp(original,oiram_native_frame_interpolated(1),sizeof original));

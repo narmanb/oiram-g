@@ -17,6 +17,8 @@ const uint8_t *oiram_native_frame(void);
 const uint8_t *oiram_native_frame_interpolated(double alpha);
 /* Render-only 640x480 RGBA; original gameplay coordinates are unchanged. */
 const uint8_t *oiram_native_frame_smooth(double alpha);
+/* Render-only RGBA at 320*scale by 240*scale; scale is normalized to 2 or 4. */
+const uint8_t *oiram_native_frame_scaled(double alpha,unsigned scale);
 void oiram_native_reset_interpolation(void);
 oiram_native_state_t oiram_native_state(void);
 void oiram_native_shutdown(void);

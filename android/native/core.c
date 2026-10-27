@@ -26,7 +26,7 @@ char *pack_author;
 static uint8_t *map_allocation;
 static unsigned int warp_storage[508];
 static bool configured,special_previous;
-static uint32_t rgba[320*240],smooth_rgba[640*480];
+static uint32_t rgba[320*240],smooth_rgba[1280*960];
 void missing_appvars(void){abort();}
 void oiram_native_shutdown(void){
     configured=false;native_presentation_reset();oiram_native_memory_release();
@@ -146,7 +146,11 @@ static const uint8_t *convert_pixels(const uint8_t *indexed,uint32_t *output,uns
 }
 const uint8_t *oiram_native_frame(void){return convert_pixels(native_indexed_frame,rgba,320*240);}
 const uint8_t *oiram_native_frame_interpolated(double alpha){return convert_pixels(native_presentation_frame(alpha),rgba,320*240);}
-const uint8_t *oiram_native_frame_smooth(double alpha){return convert_pixels(native_presentation_frame_fine(alpha),smooth_rgba,640*480);}
+const uint8_t *oiram_native_frame_smooth(double alpha){return oiram_native_frame_scaled(alpha,2);}
+const uint8_t *oiram_native_frame_scaled(double alpha,unsigned scale){
+    scale=scale==4?4:2;
+    return convert_pixels(native_presentation_frame_scaled(alpha,scale),smooth_rgba,320*240*scale*scale);
+}
 void oiram_native_reset_interpolation(void){native_presentation_reset();}
 oiram_native_state_t oiram_native_state(void){
     return (oiram_native_state_t){oiram.x,oiram.y,oiram.vy,oiram.vx,oiram.momentum,oiram.flags,oiram.lives,

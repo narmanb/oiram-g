@@ -12,6 +12,8 @@ void native_presentation_tilemap(const gfx_tilemap_t *map,unsigned sx,unsigned s
 const uint8_t *native_presentation_frame(double alpha);
 /* 640x480 indexed presentation; positions resolve half an original pixel. */
 const uint8_t *native_presentation_frame_fine(double alpha);
+/* Scale 2/4 only; unsupported requests safely select 2. Borrowed indexed data. */
+const uint8_t *native_presentation_frame_scaled(double alpha,unsigned scale);
 uint8_t *gfx_native_target(uint8_t *target);
 void gfx_native_clip(int out[4]);
 #endif

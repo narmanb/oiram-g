@@ -73,3 +73,9 @@ The user is open to resolution increases beyond the current 640x480 smooth canva
 Evaluate finer actor/camera positioning against frame-time and rendering cost
 before adopting a higher default. Increasing output resolution alone does not
 create extra motion samples or new animation frames.
+
+The user then explicitly requested implementation. Version 0.1.4 adds saved
+Auto/640x480/1280x960 choices, quarter-source-pixel placement at 4x, and actual
+render dimensions in the FPS overlay. Auto uses physical display size; phone
+frame pacing and perceived benefit still need comparison. Gameplay Hz and the
+visible play area remain unchanged. Mobile shell assistance remains deferred.

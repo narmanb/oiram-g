@@ -63,6 +63,20 @@ over 1.5 times the selected frame budget. At steady 60 FPS, intervals are about
 window covers the latest 180 foreground intervals and resets on pause/resume.
 These measure application callback pacing, not Android's display compositor.
 
+In **0.1.4**, **Smooth rendering resolution** offers:
+
+- **Auto (fit screen)**, the default: 1280x960 when the physical gameplay image
+  exceeds 640x480 pixels, otherwise 640x480. It accounts for UI/window stretching
+  and rotation. This matches resolution to screen size; it is not an FPS governor.
+- **640x480 (lighter)**: half-original-pixel motion and lower rendering cost.
+- **1280x960 (finer motion)**: quarter-original-pixel sprite/camera positioning.
+
+Resolution choices are saved and only affect smooth presentation. The visible
+play area and original artwork stay the same; classic remains 320x240. Show FPS
+also displays the actual rendering dimensions. Compare the options on your device;
+use the lighter choice if high resolution increases frame-time spikes or battery
+use. Higher resolution cannot add new original sprite animation frames.
+
 ## Editing
 
 The built-in editor offers a tile/object palette, paint/erase, unique spawn,

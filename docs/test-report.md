@@ -151,3 +151,37 @@ Independent read-only review found no Critical or Important defects.
 Final v0.1.3 APK SHA256: `fd8cd6be16124948c8362915d850b7bf3d97568233614bcd25b8846135161e67`;
 size 84164177 bytes. Version code 4 has the same verified signing certificate as
 v0.1.2. The exported ARM64 native library contains the new `frame_smooth` API.
+
+## Selectable higher resolution (0.1.4-private)
+
+- Extended ASan/UBSan presentation checks require distinct quarter-pixel actor
+  and camera positions, exact 4x artwork/alpha1 output, snapshots despite map
+  mutation, clipped negative/right-edge sprites, short pipe/door discontinuities,
+  overflow/no-history fallback, rejected scales and unchanged native state.
+- `test_pacing.gd`: 44 checks, adding real 1280x960 native output, bounded invalid
+  GDExtension scale requests, classic/high/lighter transitions, physical-window
+  stretch and portrait Auto selection, unchanged game state, actual resolution
+  display, touch-opened resolution selection and saved preference reopening.
+- The default-stage suite additionally compares every pixel of 4x alpha1 output
+  against the authentic original at sampled ticks across the default scenarios.
+- An independent read-only review found no Critical or Important issues. It
+  inspected the implementation/tests without independently rerunning the suites.
+
+A serial host benchmark of 1,200 frames per option measured native rendering plus
+RGBA conversion: 320x240 mean 0.096 ms / p95 0.171 ms; 640x480 mean 0.417 ms /
+p95 0.874 ms; 1280x960 mean 1.271 ms / p95 1.945 ms. All three runs ended at
+identical native game states. This excludes GDExtension copying, Godot allocation
+and texture upload, Android compositor pacing, device thermals and power use.
+Auto uses physical image size and does not automatically reduce resolution when
+FPS drops; the lighter override is available for device comparisons. No phone
+performance or perceptual improvement is claimed from these host measurements.
+
+The final pipeline passed the 21,420 pack checks, 70 native-shell checks, 35 touch,
+163 layout, 44 pacing/resolution and 32 editor checks, the shell suite, both
+native sanitizer suites and all 96 default-stage sanitizer scenarios.
+
+Final v0.1.4 APK SHA256: `7ee2b19224c36096623de1daa5f4ad8cb4ec4a4cbb8d268b1f70e81f6126096c`;
+size 84169025 bytes. Version code 5 has the same verified signing certificate as
+v0.1.3. The APK's stripped ARM64 library machine-code section exactly matches
+the newly built native library. Original calculator source/default pack remain
+unchanged. Artifact details are also in ignored `build/resolution-report.txt`.

@@ -101,52 +101,56 @@ const uint8_t *native_presentation_frame(double alpha){
     return rendered;
 }
 
-/* Isolated 2x rasterizer: never changes GraphX's gameplay target or clip state.
+/* Isolated 2x/4x rasterizer: never changes GraphX's gameplay target or clip state.
  * Artwork is replicated exactly, while actor/camera positions can lie between
  * original pixels. Scaling a completed 320x240 frame cannot do this.
  */
-enum { FINE_WIDTH=640, FINE_HEIGHT=480, FINE_SCALE=2 };
-static uint8_t fine_frame[FINE_WIDTH*FINE_HEIGHT];
-static void fine_sprite(const gfx_sprite_t *s,int x,int y,bool transparent,const int clip[4]){
+enum { MAX_FINE_WIDTH=1280, MAX_FINE_HEIGHT=960 };
+typedef struct {int scale,shift,width,height;} raster_t;
+static uint8_t fine_frame[MAX_FINE_WIDTH*MAX_FINE_HEIGHT];
+static void fine_sprite(const gfx_sprite_t *s,int x,int y,bool transparent,const int clip[4],const raster_t *r){
     if(!s)return;
     int x0=x>clip[0]?x:clip[0],y0=y>clip[1]?y:clip[1];
-    int x1=x+s->width*FINE_SCALE,y1=y+s->height*FINE_SCALE;
+    int x1=x+s->width*r->scale,y1=y+s->height*r->scale;
     if(x1>clip[2])x1=clip[2];if(y1>clip[3])y1=clip[3];
     for(int dy=y0;dy<y1;dy++){
-        const uint8_t *source=s->data+((dy-y)/FINE_SCALE)*s->width;
-        uint8_t *dest=fine_frame+dy*FINE_WIDTH;
+        const uint8_t *source=s->data+((dy-y)>>r->shift)*s->width;
+        uint8_t *dest=fine_frame+dy*r->width;
         for(int dx=x0;dx<x1;dx++){
-            uint8_t pixel=source[(dx-x)/FINE_SCALE];
+            uint8_t pixel=source[(dx-x)>>r->shift];
             if(pixel||!transparent)dest[dx]=pixel;
         }
     }
 }
-const uint8_t *native_presentation_frame_fine(double alpha){
+const uint8_t *native_presentation_frame_fine(double alpha){return native_presentation_frame_scaled(alpha,2);}
+const uint8_t *native_presentation_frame_scaled(double alpha,unsigned scale){
+    raster_t r=scale==4?(raster_t){4,2,1280,960}:(raster_t){2,1,640,480};
     for(int y=0;y<240;y++){
-        uint8_t *row=fine_frame+y*FINE_SCALE*FINE_WIDTH;
-        for(int x=0;x<320;x++)row[x*2]=row[x*2+1]=native_indexed_frame[y*320+x];
-        memcpy(row+FINE_WIDTH,row,FINE_WIDTH);
+        uint8_t *row=fine_frame+y*r.scale*r.width;
+        for(int x=0;x<r.width;x++)row[x]=native_indexed_frame[y*320+(x>>r.shift)];
+        for(int i=1;i<r.scale;i++)memcpy(row+i*r.width,row,(size_t)r.width);
     }
     if(capturing||overflow||!count||!previous_count)return fine_frame;
     if(!isfinite(alpha))alpha=1;
     if(alpha<0)alpha=0;if(alpha>1)alpha=1;
     for(int i=0;i<count;i++){
         const command_t *c=&current[i],*p=match(c);
-        int x=c->x*FINE_SCALE,y=c->y*FINE_SCALE,clip[4];
+        int x=c->x*r.scale,y=c->y*r.scale,clip[4];
         bool interpolate=p&&p->type==c->type&&p->width==c->width&&p->height==c->height&&abs(p->x-c->x)<=64&&abs(p->y-c->y)<=64;
-        if(interpolate){x=lerp_pixel(p->x*2,c->x*2,alpha);y=lerp_pixel(p->y*2,c->y*2,alpha);}
+        if(interpolate){x=lerp_pixel(p->x*r.scale,c->x*r.scale,alpha);y=lerp_pixel(p->y*r.scale,c->y*r.scale,alpha);}
         for(int j=0;j<4;j++){
-            clip[j]=interpolate?lerp_pixel(p->clip[j]*2,c->clip[j]*2,alpha):c->clip[j]*2;
-            int limit=(j&1)?FINE_HEIGHT:FINE_WIDTH;
+            clip[j]=interpolate?lerp_pixel(p->clip[j]*r.scale,c->clip[j]*r.scale,alpha):c->clip[j]*r.scale;
+            int limit=(j&1)?r.height:r.width;
             if(clip[j]<0)clip[j]=0;if(clip[j]>limit)clip[j]=limit;
         }
-        if(c->type==SPRITE){fine_sprite(c->sprite,x,y,c->transparent,clip);continue;}
+        if(c->type==SPRITE){fine_sprite(c->sprite,x,y,c->transparent,clip,&r);continue;}
         const gfx_tilemap_t *t=&maps[c->map].map;
+        int tile_shift=4+r.shift,tile_span=16*r.scale;
         for(unsigned yy=0;yy<t->draw_height;yy++)for(unsigned xx=0;xx<t->draw_width;xx++){
-            int tx=x/32+(int)xx,ty=y/32+(int)yy;
+            int tx=(x>>tile_shift)+(int)xx,ty=(y>>tile_shift)+(int)yy;
             uint8_t n=27;
             if(tx>=0&&ty>=0&&tx<(int)t->width&&ty<(int)t->height)n=t->map[ty*t->width+tx];
-            fine_sprite(t->tiles[n],(int)xx*32-x%32,(int)yy*32-y%32,false,clip);
+            fine_sprite(t->tiles[n],(int)xx*tile_span-(x&(tile_span-1)),(int)yy*tile_span-(y&(tile_span-1)),false,clip,&r);
         }
     }
     return fine_frame;
