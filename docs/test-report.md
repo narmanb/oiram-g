@@ -73,3 +73,24 @@ The source's unthrottled loop does not define a target rate, so the 30 Hz baseli
 must be calibrated before claiming wall-time fidelity. The editor still lacks
 new pipe/door-pair creation and desktop password-lock UI. These limitations are
 explicit rather than placeholder gameplay.
+
+## Touch input regression fix (0.1.1-private)
+
+The first Android build disabled mouse-from-touch emulation. Custom gameplay
+controls handled native fingers, but standard Godot menu buttons received no
+mouse click, so the title screen could not be operated by touch. Earlier tests
+called menu callbacks directly and did not catch this Android input-path error.
+
+Version 0.1.1 enables that UI bridge, filters duplicate synthetic mouse events
+from the custom gameplay/editor finger handlers, and adds a persistent
+Show touch controls setting (on by default). Hiding gameplay controls leaves
+menu/Pause taps and gamepad/keyboard input active. The new test_touch.gd injects
+actual ScreenTouch events through Input.parse_input_event and verifies Settings,
+the saved toggle, Play, Pause, Resume and simultaneous steering/run/jump. The
+previous setting reproduces the menu failure; the corrected setting passes.
+This is host input-path verification; physical Android retesting remains needed.
+
+The v0.1.1 build passes 35 actual-input touch checks, 70 native integration checks,
+32 editor checks, the full pack suite, native sanitizer regressions and all 96
+default-stage sanitizer scenarios. Exported APK SHA256: `9397dc58919ecebe12610872783e8da1cf132e39e0f28405cb5ba2cbb2252401`.
+Version code 2 uses the same signing certificate as the initial build.

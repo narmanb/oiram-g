@@ -14,7 +14,9 @@ Verification record: [test report](../docs/test-report.md).
 
 Open Play from the pack menu. Touch controls support simultaneous directions,
 Jump, Run and Special. Settings save mirrored controls, opacity, size and
-remapped gamepad action buttons. Default gamepad controls are left stick/D-pad,
+remapped gamepad action buttons. **Show touch controls** defaults on; turn it off
+to hide the gameplay buttons while using a controller. Menu and Pause buttons
+remain touchable with that setting off. Default gamepad controls are left stick/D-pad,
 A Jump, B Run, X Special, Start Pause. Keyboard: arrows, Z Jump, X Run,
 C Special, Escape Pause. The original alternate scheme and secret codes are
 available in Settings. Gameplay is silent, matching the calculator game.

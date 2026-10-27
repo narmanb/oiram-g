@@ -50,7 +50,7 @@ if test -f /etc/ssl/certs/java/cacerts; then
 fi
 # The editor scan registers extensions and creates editor settings on a fresh host.
 "$GODOT" --headless --editor --path "$REPO_ROOT/android" --quit
-for TEST_PATH in tests/test_packs tests/test_shell tests/test_native_integration editor/test_editor; do
+for TEST_PATH in tests/test_packs tests/test_shell tests/test_native_integration tests/test_touch editor/test_editor; do
   TEST=${TEST_PATH##*/}
   test -f "$REPO_ROOT/android/$TEST_PATH.gd" || { echo "Missing required test $TEST" >&2; exit 1; }
   TEST_LOG="$TOOLS_DIR/$TEST.log"
@@ -62,6 +62,7 @@ for TEST_PATH in tests/test_packs tests/test_shell tests/test_native_integration
   case "$TEST" in
     test_packs) grep -Eq 'Pack codec: [0-9]+ checks, 0 failures' "$TEST_LOG" ;;
     test_shell) grep -q 'PASS:' "$TEST_LOG" ;;
+    test_touch) grep -Eq 'Touch input: [0-9]+ checks, 0 failures' "$TEST_LOG" ;;
     test_native_integration) grep -Eq 'Native shell integration: [0-9]+ checks, 0 failures' "$TEST_LOG" ;;
     test_editor) grep -Eq 'Editor: [0-9]+ checks, 0 failures' "$TEST_LOG" ;;
   esac

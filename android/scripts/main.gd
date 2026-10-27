@@ -45,6 +45,7 @@ func _ready() -> void:
 		var value: Variant = settings.get(entry[0], entry[1])
 		settings[entry[0]] = clampf(float(value), entry[2], entry[3]) if (value is int or value is float) and is_finite(float(value)) else entry[1]
 	settings.secret_code = store._number(settings.get("secret_code"), 0, 0, 99999999)
+	settings.touch_controls = settings.get("touch_controls", true) == true
 	settings.mirrored = settings.get("mirrored", false) == true
 	settings.alternate = settings.get("alternate", false) == true
 	controls.alternate = bool(settings.get("alternate", false))
@@ -468,15 +469,30 @@ func _save_settings() -> void:
 	store.set_settings(settings)
 	store.flush()
 
+func _set_touch_controls(enabled: bool) -> void:
+	settings.touch_controls = enabled
+	controls.touch_actions.clear()
+	pointer_positions.clear()
+	mouse_down = false
+	_save_settings()
+	_layout()
+
 func _settings_menu() -> void:
 	controls.pause_enabled = false
 	var column = _card("SETTINGS", "Touch controls and gamepad preferences are saved on this device.")
-	for entry in [["mirrored", "Left-handed layout (mirror controls)"], ["alternate", "Original alternate keys (C jump / Z run / X special)"]]:
+	for entry in [["touch_controls", "Show touch controls"], ["mirrored", "Left-handed layout (mirror controls)"], ["alternate", "Original alternate keys (C jump / Z run / X special)"]]:
 		var toggle = CheckButton.new()
 		toggle.text = entry[1]
 		toggle.button_pressed = bool(settings.get(entry[0], false))
 		var setting_key: String = entry[0]
-		toggle.toggled.connect(func(value: bool): settings[setting_key] = value; controls.alternate = bool(settings.get("alternate", false)); _save_settings(); _layout())
+		toggle.toggled.connect(func(value: bool):
+			if setting_key == "touch_controls":
+				_set_touch_controls(value)
+			else:
+				settings[setting_key] = value
+				controls.alternate = bool(settings.get("alternate", false))
+				_save_settings()
+				_layout())
 		column.add_child(toggle)
 	for entry in [["opacity", "Touch opacity", 0.25, 1.0, 0.05, 0.75], ["size", "Touch size", 0.7, 1.3, 0.05, 1.0]]:
 		column.add_child(_label(entry[1], 18, MUTED))
@@ -583,10 +599,11 @@ func _layout() -> void:
 	var portrait = size.y > size.x
 	var control_scale = clampf(float(settings.get("size", 1.0)), 0.7, 1.3)
 	var radius = minf(43.0, size.x * 0.065) * control_scale
-	var side_margin = radius * 4.2 + 16
+	var show_touch = bool(settings.get("touch_controls", true))
+	var side_margin = radius * 4.2 + 16 if show_touch else 12.0
 	var available = Rect2(Vector2(side_margin, 66), Vector2(maxf(100, size.x - side_margin * 2), maxf(100, size.y - 80)))
 	if portrait:
-		available = Rect2(Vector2(12, 68), Vector2(size.x - 24, maxf(100, size.y - 280)))
+		available = Rect2(Vector2(12, 68), Vector2(size.x - 24, maxf(100, size.y - (280 if show_touch else 80))))
 	var scale_factor = minf(available.size.x / 320.0, available.size.y / 240.0)
 	screen.size = Vector2(320, 240) * scale_factor
 	screen.position = available.position + (available.size - screen.size) * 0.5
@@ -598,6 +615,9 @@ func _layout() -> void:
 		left_center = right_center
 		right_center = old_left
 	touch_regions.clear()
+	if not show_touch:
+		queue_redraw()
+		return
 	var spacing = radius * 1.15
 	for entry in [[Controls.LEFT, Vector2(-spacing, 0), "◀"], [Controls.RIGHT, Vector2(spacing, 0), "▶"], [Controls.UP, Vector2(0, -spacing), "▲"], [Controls.DOWN, Vector2(0, spacing), "▼"]]:
 		touch_regions.append({"action": entry[0], "center": left_center + entry[1], "radius": radius * 0.7, "label": entry[2]})
@@ -611,7 +631,7 @@ func _draw() -> void:
 	if not running: return
 	if is_instance_valid(screen):
 		draw_style_box(_frame_style(), Rect2(screen.position - Vector2(3, 3), screen.size + Vector2(6, 6)))
-	if paused: return
+	if paused or not bool(settings.get("touch_controls", true)): return
 	var opacity = clampf(float(settings.get("opacity", 0.75)), 0.25, 1.0)
 	var font = ThemeDB.fallback_font
 	for region in touch_regions:
@@ -645,7 +665,9 @@ func _input(event: InputEvent) -> void:
 		_settings_menu()
 		get_viewport().set_input_as_handled()
 		return
-	if not running or paused: return
+	if not running or paused or not bool(settings.get("touch_controls", true)): return
+	# UI widgets need synthesized mouse events; gameplay already handles each finger.
+	if event is InputEventMouse and event.device == InputEvent.DEVICE_ID_EMULATION: return
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			pointer_positions[event.index] = event.position

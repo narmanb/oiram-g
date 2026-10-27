@@ -85,6 +85,8 @@ func _finish() -> void:
 	previous_cell = Vector2i(-1, -1)
 
 func _gui_input(event: InputEvent) -> void:
+	# Native touch painting already owns this stroke; ignore its synthetic mouse copy.
+	if event is InputEventMouse and event.device == InputEvent.DEVICE_ID_EMULATION: return
 	if event is InputEventMouseButton:
 		if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and event.pressed:
 			set_zoom(zoom * (1.25 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 0.8))
